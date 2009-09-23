@@ -1,0 +1,12 @@
+.trafficlimiter-progress {
+	margin: 4px;
+	border: 1px solid #dfdfdf;	
+}
+
+.trafficlimiter-progress .label {
+	position: relative;
+	width: 100%;
+	height: 26px;
+	text-align: center;
+	margin-top: 10px;
+}
