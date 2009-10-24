@@ -209,16 +209,53 @@ function trafficlimiter_is_image($name)
  * @param string $file_path The absolute path of the file
  * @param float $message Optional. Max. bandwidth in KiB/s
  */
+ 
+ 
+function trafficlimiter_download_header($file_path, $file_type)
+{
+	if(trafficlimiter_get_opt('force_download'))
+		return true;
+	
+	$file_name = basename($file_path);
+	$request_path = parse_url($_SERVER['REQUEST_URI']);
+	$request_path = urldecode($request_path['path']);
+	$request_file_name = basename($request_path);
+	if($file_name == $request_file_name)
+		return false;
+		
+	// types that can be viewed in the browser
+	static $media = array('audio', 'image', 'text', 'video', 'application/pdf', 'application/x-shockwave-flash');	
+	foreach($media as $m)
+	{
+		$p = strpos($file_type, $m);
+		if($p !== false && $p == 0)
+			return false;
+	}	
+	return true;
+}
+
+ function trafficlimiter_range_header($file_path, $file_type)
+{
+	static $no_range_types = array('application/pdf', 'application/x-shockwave-flash');
+	foreach($no_range_types as $t)
+	{
+		$p = strpos($file_type, $t);
+		if($p !== false && $p == 0)
+			return false;
+	}	
+	return true;
+}
+
 function trafficlimiter_send_file($file_path, $bandwidth = 0)
 {
 	// remove some headers
 	if(function_exists('header_remove')) {
 		header_remove();
+	} else {
+		header("Expires: ");
+		header("X-Pingback: ");
 	}
-	header("Expires: ");
-	header("X-Pingback: ");
-	
-	
+
 	if(!@file_exists($file_path) || !is_file($file_path))
 	{
 		header('HTTP/1.x 404 Not Found');
@@ -227,11 +264,21 @@ function trafficlimiter_send_file($file_path, $bandwidth = 0)
 	
 	$size = filesize($file_path);
 	$time = filemtime($file_path);
+	$file_type = trafficlimiter_content_type($file_path);
+	
+	// set basic headers
+	header("Pragma: public");
+	header("Cache-Control: public");
+	header("Connection: close");
+	
+	// charset fix
+	header("Content-Type: " . $file_type . ((strpos($file_type, 'text/') !== false) ? '; charset=' : ''));
 	
 	if(!empty($_SERVER['HTTP_IF_MODIFIED_SINCE']))
 	{
 		if(@strtotime($_SERVER['HTTP_IF_MODIFIED_SINCE']) >= $time)
 		{
+			header("Content-Length: " . $size);
 			header("HTTP/1.x 304 Not Modified");
 			exit;
 		}
@@ -243,13 +290,15 @@ function trafficlimiter_send_file($file_path, $bandwidth = 0)
 	$begin = 0;
 	$end = $size;
 
-	if(!empty($_SERVER['HTTP_RANGE']) && strpos($_SERVER['HTTP_RANGE'], 'bytes=') !== false)
+	$http_range = isset($_SERVER['HTTP_RANGE']) ? $_SERVER['HTTP_RANGE'] : '';
+	if(!empty($http_range) && strpos($http_range, 'bytes=') !== false && strpos($http_range, ',') === false) // multi-range not supported (yet)!
 	{
-		$range = explode('-', trim(substr($_SERVER['HTTP_RANGE'], 6)));
+		$range = explode('-', trim(substr($http_range, 6)));
 		$begin = 0 + trim($range[0]);
 		if(!empty($range[1]))
 			$end = 0 + trim($range[1]);
-	}
+	} else
+		$http_range = '';
 	
 	if($begin > 0 || $end < $size)
 		header('HTTP/1.0 206 Partial Content');
@@ -262,20 +311,19 @@ function trafficlimiter_send_file($file_path, $bandwidth = 0)
 	
 	// modifiy some headers...
 	header("Last-Modified: " . gmdate("D, d M Y H:i:s", $time) . " GMT"); 
-	header("Pragma: public");
-	header("Cache-Control: public");
-	header("Accept-Ranges: bytes");
+	
+	if(trafficlimiter_range_header($file_path, $file_type))
+		header("Accept-Ranges: bytes");
 	
 	// content headers
-	/*header("Content-Description: File Transfer");*/
-	header("Content-Type: " . trafficlimiter_content_type($file_path));
-	header("Content-Disposition: attachment; filename=\"" . basename($file_path) . "\"");
-	header("Content-Transfer-Encoding: binary");
+	if(trafficlimiter_download_header($file_path, $file_type)) {
+		header("Content-Disposition: attachment; filename=\"" . basename($file_path) . "\"");
+		header("Content-Description: File Transfer");
+	}
 	header("Content-Length: " . $length);
-	if(isset($_SERVER['HTTP_RANGE']))
+	if(!empty($http_range))
 		header("Content-Range: bytes " . $begin . "-" . ($end-1) . "/" . $size);
-	
-	header("Connection: close");
+
 	
 	@session_destroy();
 	

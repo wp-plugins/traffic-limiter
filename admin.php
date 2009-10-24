@@ -1,5 +1,7 @@
 <?php
 
+define('TRAFFICLIMITER_HTACCESS_ID', TRAFFICLIMITER . '_1');
+
 function trafficlimiter_add_options()
 {
 	$options = array( 
@@ -209,6 +211,7 @@ function trafficlimiter_admin_options()
 			}			
 			$options['bandwidth_users'] = floatval($_POST['trafficlimiter_bandwidth_users']);
 			$options['bandwidth_guests'] = floatval($_POST['trafficlimiter_bandwidth_guests']);
+			$options['force_download'] = empty($_POST['trafficlimiter_force_download']) ? '0' : '1';
 			update_option(TRAFFICLIMITER, $options);
 		}
 		
@@ -228,11 +231,15 @@ function trafficlimiter_admin_options()
 
 <tr valign="top">
 	<th scope="row"><label for="trafficlimiter_bandwidth_users"><?php _e('Download bandwidth for registered users', TRAFFICLIMITER) ?></label></th>
-	<td><input name="trafficlimiter_bandwidth_users" type="text" id="trafficlimiter_bandwidth_users" value="<?php echo intval(trafficlimiter_get_opt('bandwidth_users')) ?>" class="small-text" /> KiB / s</td>
+	<td><input name="trafficlimiter_bandwidth_users" type="text" id="trafficlimiter_bandwidth_users" value="<?php echo intval(trafficlimiter_get_opt('bandwidth_users')) ?>" class="small-text" /> KiB / s (<?php _e('0 =&gt; unlimited') ?>)</td>
 </tr>
 <tr valign="top">
 	<th scope="row"><label for="trafficlimiter_bandwidth_guests"><?php _e('Download bandwidth for guests', TRAFFICLIMITER) ?></label></th>
-	<td><input name="trafficlimiter_bandwidth_guests" type="text" id="trafficlimiter_bandwidth_guests" value="<?php echo intval(trafficlimiter_get_opt('bandwidth_guests')) ?>" class="small-text" /> KiB / s</td>
+	<td><input name="trafficlimiter_bandwidth_guests" type="text" id="trafficlimiter_bandwidth_guests" value="<?php echo intval(trafficlimiter_get_opt('bandwidth_guests')) ?>" class="small-text" /> KiB / s (<?php _e('0 =&gt; unlimited') ?>)</td>
+</tr>
+<tr valign="top">
+	<th scope="row"><label for="trafficlimiter_force_download"><?php _e('Force download of media files (no streaming)', TRAFFICLIMITER) ?></label></th>
+	<td><input name="trafficlimiter_force_download" type="checkbox" id="trafficlimiter_force_download" value="1" <?php checked(trafficlimiter_get_opt('force_download'), '1') ?> /></td>
 </tr>
 <tr valign="top">
 	<th scope="row"><label for="trafficlimiter_traffic_exceeded_msg"><?php _e('Message shown if traffic limit is exceeded or URL to redirect', TRAFFICLIMITER) ?></label></th>
@@ -259,12 +266,11 @@ function trafficlimiter_htaccess_create()
 	if( !($fp = @fopen($htaccess, 'w')) )
 		return false;
 
-	fwrite($fp, "#" . TRAFFICLIMITER . "\n");	
+	fwrite($fp, "#" . TRAFFICLIMITER_HTACCESS_ID . "\n");	
 	
-	$site_root = parse_url(get_option('siteurl'));
-	if ( isset( $site_root['path'] ) ) {
-		$site_root = trailingslashit($site_root['path']);
-	}				
+	$siteurl = parse_url(get_option('siteurl'));
+	$site_root = trailingslashit(isset($siteurl['path']) ? $siteurl['path'] : '');
+			
 	$upload_root = trailingslashit($site_root . str_replace(ABSPATH, '', get_option('upload_path')));
 	$download_script = $site_root . str_replace(ABSPATH, '', TRAFFICLIMITER_PLUGIN_DIR) . '/getmedia.php';
 					
@@ -294,7 +300,7 @@ function trafficlimiter_htaccess_ok()
 		return false;
 		
 	$fp = @fopen($htaccess, 'r');
-	$ok = (trim(@fgets($fp)) == ("#" . TRAFFICLIMITER));
+	$ok = (trim(@fgets($fp)) == ("#" . TRAFFICLIMITER_HTACCESS_ID));
 	@fclose($fp);
 	
 	return $ok;

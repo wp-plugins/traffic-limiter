@@ -1,10 +1,10 @@
 <?php
 /*
 Plugin Name: Traffic Limiter
-Plugin URI: http://fabi.me/wp-plugins/traffic-limiter
+Plugin URI: http://fabi.me/wordpress-plugins/traffic-limiter/
 Description: Limits media traffic and download bandwidth
 Author: Fabian Schlieper
-Version: 0.1.0
+Version: 0.1.1
 Author URI: http://fabi.me/
 */
 
